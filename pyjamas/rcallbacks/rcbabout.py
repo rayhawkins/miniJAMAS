@@ -19,8 +19,8 @@
 import os
 
 import pyjamas.pjscore as pjscore
-from pyjamas.dialogs.textdialog import TextDialog
 from .rcallback import RCallback
+
 
 class RCBAbout(RCallback):
 
@@ -40,7 +40,6 @@ class RCBAbout(RCallback):
         if os.path.exists(self.license_path):
             with open(self.license_path) as file:  # Use file to refer to the file object
                 text = file.read()
-                dialog = TextDialog(f"PyJAMAS {self.pjs.__version__}\n\n" + text, "About")
-                dialog.show()
+                print(f"PyJAMAS {self.pjs.__version__}\n\n" + text)
 
         return True
