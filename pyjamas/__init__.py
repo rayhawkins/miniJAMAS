@@ -16,8 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from pyjamas import pjscore, pjsthreads, rutils
+from pyjamas import pjscore, rutils
 
 name = "pyjamas"
 
-__all__ = [pjscore.PyJAMAS, pjsthreads.ThreadSignals, pjsthreads.Thread, rutils.RUtils, rutils.SizedStack]
+__all__ = [pjscore.PyJAMAS, rutils.RUtils, rutils.SizedStack]
