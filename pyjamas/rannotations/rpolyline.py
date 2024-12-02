@@ -29,7 +29,7 @@ from pyjamas.rannotations import *
 from pyjamas.rutils import RUtils
 
 
-class RPolyline(rannotation.RAnnotation):
+class RPolyline:
     """
     Represents a multisegment line (open) or polygon (closed) by providing a list of points (list, tuple, ndarray, etc),
     and a flag to indicate whether the curve is closed (1) or open (1).
