@@ -26,7 +26,6 @@ from typing import Iterable, List, Optional, Tuple
 
 import matplotlib
 import numpy
-from PyQt6 import QtGui, QtWidgets, QtCore
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.spatial.distance import cdist
 import seaborn as sns
@@ -36,11 +35,6 @@ import shapely.geometry
 
 class RUtils:
     """
-    def qpolygonf2polygon(cls, aqpolygonf: QtGui.QPolygonF) -> shapely.geometry.Polygon
-    def qpolygonf2list(cls, aqpolygonf: QtGui.QPolygonF) -> list
-    def qpolygonfs2coordinatelists(cls, theqpolygonfs: List[List[QtQui.QPolygonF]]) -> List[List[int]]
-    def list2qpolygonf(cls, alist: list) -> QtGui.QPolygonF
-    def qpolygonf2ndarray(cls, aqpolygonf: QtGui.QPolygonF) -> numpy.ndarray
     def isperipheralpoint(cls, point_array: numpy.ndarray, index: int, concave_hull: bool = False,
                           alpha: float = -1.) -> bool
     def circumcircle(cls, points: numpy.ndarray, simplex: numpy.ndarray) -> ((numpy.float, numpy.float), numpy.float)
@@ -57,57 +51,6 @@ class RUtils:
     """
 
     DEFAULT_PICKLE_PROTOCOL: int = 3
-
-    @classmethod
-    def qpolygonf2polygon(cls, aqpolygonf: QtGui.QPolygonF) -> shapely.geometry.Polygon:
-        if aqpolygonf is False or type(aqpolygonf) != QtGui.QPolygonF:
-            return shapely.geometry.Polygon(None)
-
-        qpointf_list = list(aqpolygonf)
-
-        point_list = [[qpointf.x(), qpointf.y()] for qpointf in qpointf_list]
-
-        # If only two points were provided, duplicate the last point.
-        if len(point_list) < 3:
-            point_list.append(point_list[-1].copy())
-
-        return shapely.geometry.Polygon(point_list)
-
-    @classmethod
-    def qpolygonf2list(cls, aqpolygonf: QtGui.QPolygonF) -> list:
-        if aqpolygonf is False or type(aqpolygonf) != QtGui.QPolygonF:
-            return []
-
-        qpointf_list = list(aqpolygonf)
-
-        return [[qpointf.x(), qpointf.y()] for qpointf in qpointf_list]
-
-    @classmethod
-    def qpolygonfs2coordinatelists(cls, theqpolygonfs: List[List[QtGui.QPolygonF]]) -> List[List[int]]:
-        polyline_list = [[] for _ in theqpolygonfs]
-        for iframe, theframepolylines in enumerate(theqpolygonfs):
-            for thepolyline in theframepolylines:
-                polyline_list[iframe].append(RUtils.qpolygonf2list(thepolyline))
-
-        return polyline_list
-
-    @classmethod
-    def qpolygonf2ndarray(cls, aqpolygonf: QtGui.QPolygonF) -> numpy.ndarray:
-        return numpy.asarray(RUtils.qpolygonf2list(aqpolygonf))
-
-    @classmethod
-    def ndarray2qpolygonf(cls, andarray: numpy.ndarray) -> QtGui.QPolygonF:
-        thepolyline = QtGui.QPolygonF()
-        for thepoint in andarray:
-            thepolyline.append(QtCore.QPointF(thepoint[0], thepoint[1]))
-        return thepolyline
-
-    @classmethod
-    def list2qpolygonf(cls, alist: list) -> QtGui.QPolygonF:
-        thepolyline = QtGui.QPolygonF()
-        for thepoint in alist:
-            thepolyline.append(QtCore.QPointF(thepoint[0], thepoint[1]))
-        return thepolyline
 
     @classmethod
     def isperipheralpoint(cls, point_array: numpy.ndarray, index: int, concave_hull: bool = False,
@@ -287,7 +230,6 @@ class RUtils:
 
         return output
 
-
     @classmethod
     def natural_sort(cls, s):
         nsre = re.compile('([0-9]+)')
@@ -297,64 +239,6 @@ class RUtils:
     @classmethod
     def point2point_distances(cls, points_orig: numpy.ndarray, points_dest: numpy.ndarray) -> numpy.ndarray:
         return cdist(points_orig, points_dest, 'euclidean')
-
-    @classmethod
-    def open_folder_dialog(cls, title: str, starting_folder: str) -> str:
-        return QtWidgets.QFileDialog.getExistingDirectory(None, title, starting_folder)
-
-    @classmethod
-    def write_dict_csv(cls, filename: Optional[str] = None, adictionary: Optional[dict] = None) -> bool:
-        """
-        DELETE THIS METHOD?
-        :param filename:
-        :param adictionary:
-        :return:
-        """
-        if filename == '' or filename is None or filename is False or adictionary is None or adictionary is False:
-            return False
-
-        # Make sure file extension is .csv.
-        thefile, extension = os.path.splitext(filename)
-        if extension != '.csv':
-            filename = thefile + '.csv'
-
-        with open(filename, "w") as fh:
-            writer = csv.writer(fh)
-
-            for akey, avalue in adictionary.items():
-                writer.writerow([akey])  # Putting a string in a list is the way to write the entire string into a single cell. Otherwise, each character in the string is written in a different cell.
-
-                if type(avalue) == list:
-                    writer.writerow(avalue)
-                else:
-                    writer.writerow([avalue])
-        return True
-
-    @classmethod
-    def read_csv_dict(cls, filename: Optional[str] = None) -> dict:
-        """
-        DELETE THIS METHOD?
-        :param filename:
-        :return:
-        """
-        if filename == '' or filename is None or filename is False:
-            return None
-
-        if not os.path.exists(filename):
-            return None
-
-        thedict: dict = {}
-
-        with open(filename, "r") as fh:
-            reader = csv.reader(fh)
-
-            for akey in reader:
-                avalue = next(reader)
-                thedict[akey] = [avalue]
-
-        print(thedict)
-
-        return thedict
 
     @classmethod
     def set_extension(cls, filename: str, extension: str) -> str:
@@ -416,7 +300,6 @@ class RUtils:
         n_fiducials_per_slice = [len(a_slice) for a_slice in fiducials]
         max_n_fiducials: int = max(n_fiducials_per_slice)
         n_slices = len(fiducials)
-
 
         coordinates: numpy.ndarray = numpy.full((n_slices, max_n_fiducials, 2), -1, dtype=int)
 
