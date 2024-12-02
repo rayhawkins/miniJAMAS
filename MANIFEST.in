@@ -1,0 +1,10 @@
+# The instructions in this file only affect the source distribution, NOT THE WHEEL!!
+include pyjamas/pyjamas.tif
+include *.py
+include pyjamas/LICENSE
+include README.md
+prune dist
+prune build
+prune pyjamas_rfglab.egg-info
+prune __pycache__
+prune pyjamas/__pycache__
