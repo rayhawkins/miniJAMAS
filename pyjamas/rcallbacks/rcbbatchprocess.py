@@ -29,20 +29,13 @@ from nbformat.notebooknode import NotebookNode
 import numpy
 import pandas as pd
 pd.options.mode.copy_on_write = True  # avoid "setting with copy" warnings: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
-# import pylustrator
-from PyQt6 import QtWidgets
 import seaborn as sns
 from scipy.optimize import leastsq
 from scipy import stats
 import skimage.io as sio
 import skimage.transform as st
 
-from pyjamas.dialogs.batchanalysis import BatchMeasureDialog
-from pyjamas.dialogs.batchflatfield import BatchFlatFieldCorrectionDialog
-from pyjamas.dialogs.batchresize import BatchResizeDialog
-from pyjamas.dialogs.batchprojectconcat import BatchProjectConcatenateDialog
 from pyjamas.pjscore import PyJAMAS
-from pyjamas.pjsthreads import ThreadSignals
 from pyjamas.rcallbacks.rcallback import RCallback
 from pyjamas.rcallbacks.rcbimage import projection_types
 from pyjamas.rimage.rimutils import rimutils as rimutils
@@ -89,8 +82,6 @@ class RCBBatchProcess(RCallback):
     NORMALIZE_INTENSITY_FLAG_BM: int = normalization_modes.BACKGROUND_PHOTOBLEACHING_MEAN_IMAGE
     T_RES_BM: float = 30  # Time resolution in seconds.
     XY_RES_BM: float = 16 / (60 * 1.5)  # Spatial resolution in microns.
-    # INDEX_TIME_ZERO_BM: Number of time points before treatment (e.g. number of images before wounding) if time zero is the time AFTER TREATMENT.
-    # INDEX_TIME_ZERO_BM: Number of time points before treatment - 1 if time zero is the time BEFORE applying the treatment.
     INDEX_TIME_ZERO_BM: int = 4
     PLOT_FLAG_BM: bool = False  # Generate and display plots.
     GROUP_LABELS_BM: List[str] = ['group 1', 'group 2']
@@ -131,8 +122,7 @@ class RCBBatchProcess(RCallback):
 
     def cbBatchProjectConcat(self, input_folder_name: Optional[str] = None, slice_str: Optional[str] = None,
                              output_file_name: Optional[str] = None,
-                             projection_type: projection_types = projection_types.MAX,
-                             wait_for_thread: bool = False) -> bool:
+                             projection_type: projection_types = projection_types.MAX) -> bool:
         """
         Project all the 3D images in a folder and concatenate all the maximum intensity projections into a new 3D image.
 
@@ -142,92 +132,38 @@ class RCBBatchProcess(RCallback):
         :param slice_str: slice indexes to use for projection (e.g. '0, 2-4, 12').
         :param output_file_name: path and file name to save the image resulting from projecting and concatenating the images in input_folder_name.
         :param projection_type: determines the type of projection to use (max, sum, etc.); value is one of rcbbatchprocess.projection_types.
-        :param wait_for_thread: True if PyJAMAS must wait for the thread running this operation to complete, False otherwise.
         :return: True if the projected and concatenated image is saved, False otherwise.
         """
-        # If not enough parameters, open dialog.
-        if input_folder_name is None or input_folder_name == '' or input_folder_name is False or not os.path.exists(
-                input_folder_name):  # When the menu option is clicked on, for some reason that I do not understand, the function is called with filename = False, which causes a bunch of problems.
-            dialog = QtWidgets.QDialog()
-            ui = BatchProjectConcatenateDialog()
-            ui.setupUi(dialog)
-            dialog.exec()
-            dialog.show()
-            # If the dialog was closed by pressing OK, then run the measurements.
-            continue_flag = dialog.result() == QtWidgets.QDialog.DialogCode.Accepted
-            theparameters = ui.parameters()
-            theparameters['projection_type'] = projection_type
 
-            dialog.close()
+        theparameters = {'input_folder': input_folder_name,
+                         'slice_list': slice_str,
+                         'file_name': output_file_name,
+                         'projection_type': projection_type}
 
-        # Otherwise, continue with supplied parameters
-        else:
-            theparameters = {'input_folder': input_folder_name,
-                             'slice_list': slice_str,
-                             'file_name': output_file_name,
-                             'projection_type': projection_type}
-            continue_flag = True
+        return_value = self.batch_project_concatenate(theparameters)
+        if return_value:
+            self.pjs.cwd = os.path.abspath(theparameters['input_folder'])
 
-        if continue_flag:
-            return_value = self.launch_thread(self.batch_project_concatenate,
-                                              {'parameters': theparameters, 'progress': True, 'stop': True},
-                                              finished_fn=self.finished_fn, stop_fn=self.stop_fn,
-                                              progress_fn=self.progress_fn,
-                                              wait_for_thread=wait_for_thread)
+        return return_value
 
-            if return_value:
-                self.pjs.cwd = os.path.abspath(theparameters['input_folder'])
-
-            return return_value
-        else:
-            return False
-
-    def cbBatchResize(self, parameters: Optional[dict] = None) -> bool:
+    def cbBatchResize(self, input_folder: str, save_folder: str, im_size: tuple, recurr: bool) -> bool:
         """
         Resizes all images within a given folder or folder tree to a specified size and saves them to a new folder.
 
-        :param parameters: dictionary with parameters, a dialog will open if the value is none.
-
-            ``input_folder``: absolute path to the folder containing all images to be resized.
-            ``save_folder``: absolute path to the folder that resized images will be saved to.
-            ``im_size``: tuple containing the new image size in (rows, cols), eq. (height, width).
-            ``recurr``: When set to true, the folder tree will be searched recursively for images to be resized.
+        :param input_folder: absolute path to the folder containing all images to be resized.
+        :param save_folder: absolute path to the folder that resized images will be saved to.
+        :param im_size: tuple containing the new image size in (rows, cols), eq. (height, width).
+        :param recurr: When set to true, the folder tree will be searched recursively for images to be resized.
 
         :return: True if resizing complete, False otherwise.
         """
-        # Get folder name.
-        continue_flag: bool = True
 
-        if parameters is None or parameters is False:
-            dialog = QtWidgets.QDialog()
-            ui = BatchResizeDialog()
-            ui.setupUi(dialog)
-
-            dialog.exec()
-            dialog.show()
-
-            continue_flag = dialog.result() == QtWidgets.QDialog.DialogCode.Accepted
-
-            if continue_flag:
-                parameters = ui.parameters()
-
-            dialog.close()
-
-        if continue_flag:
-            input_folder = parameters.get('input_folder')
-            save_folder = parameters.get('save_folder')
-            im_size = parameters.get('im_size')
-            recurr = parameters.get('recurr')
-            if save_folder == '':
-                save_folder = input_folder + f"_resized_{im_size[0]}x{im_size[1]}"
-            if not os.path.exists(save_folder):
-                os.mkdir(save_folder)
-            self.batch_resize_images(input_folder, save_folder, im_size, recurr)
-            self.pjs.statusbar.showMessage('Finished.')
-
-            return True
-        else:
-            return False
+        if save_folder == '':
+            save_folder = input_folder + f"_resized_{im_size[0]}x{im_size[1]}"
+        if not os.path.exists(save_folder):
+            os.mkdir(save_folder)
+        self.batch_resize_images(input_folder, save_folder, im_size, recurr)
+        return True
 
     def batch_resize_images(self, input_folder: Optional[str] = None, save_folder: Optional[str] = None,
                             im_size: Optional[tuple] = (512, 512), recurr: Optional[bool] = True) -> bool:
@@ -254,63 +190,24 @@ class RCBBatchProcess(RCallback):
 
         return True
 
-    def cbBatchFlatFieldCorrection(self, parameters: Optional[dict] = None) -> bool:
+    def cbBatchFlatFieldCorrection(self, input_folder: str, darkfield_file: str, flatfield_file: str,
+                                   crop_dims: tuple, bg_mode: str, input_substr: str, file_suffix: str) -> bool:
         """
         Flat field correction of all images within a given folder or folder tree.
 
-        :param parameters: dictionary with parameters, a dialog will open if the value is none.
-
-            ``input_folder``:
-                absolute path to the folder containing all images to be resized.
-            ``darkfield_file``:
-                path to the file containing the image to correct for darkfield, '' or None of no darkfield correction.
-            ``flatfield_file``:
-                path to the file containing the image to correct for flatfield, '' or None of no flatfield correction.
-            ``crop_dims``:
-                tuple with (row, col) dimensions to crop the images before applying any corrections, None for no cropping.
-            ``bg_mode``:
-                background subtraction, None if no background subtraction, 'mode' if the background is the volume mode.
-            ``input_substr``:
-                substring to refine input files corrected, '' to correct all images.
-            ``file_suffix``:
-                suffix to add to the file name of the corrected images.
+        :param input_folder: absolute path to the folder containing all images to be resized.
+        :param darkfield_file: path to the file containing the image to correct for darkfield, '' or None of no darkfield correction.
+        :param flatfield_file: path to the file containing the image to correct for flatfield, '' or None of no flatfield correction.
+        :param crop_dims: tuple with (row, col) dimensions to crop the images before applying any corrections, None for no cropping.
+        :param bg_mode: background subtraction, None if no background subtraction, 'mode' if the background is the volume mode.
+        :param input_substr: substring to refine input files corrected, '' to correct all images.
+        :param file_suffix: suffix to add to the file name of the corrected images.
 
         :return: True if correction complete, False otherwise.
         """
-        # Get folder name.
-        continue_flag: bool = True
-
-        if parameters is None or parameters is False:
-            dialog = QtWidgets.QDialog()
-            ui = BatchFlatFieldCorrectionDialog()
-            ui.setupUi(dialog)
-
-            dialog.exec()
-            dialog.show()
-
-            continue_flag = dialog.result() == QtWidgets.QDialog.DialogCode.Accepted
-
-            if continue_flag:
-                parameters = ui.parameters()
-
-            dialog.close()
-
-        if continue_flag:
-            input_folder = parameters.get('input_folder')
-            darkfield_file = parameters.get('darkfield_file')
-            flatfield_file = parameters.get('flatfield_file')
-            crop_dims = parameters.get('crop_dims')
-            bg_mode = parameters.get('bg_mode')
-            input_substr = parameters.get('input_substr')
-            file_suffix = parameters.get('file_suffix')
-
-            self.batch_correct_images(input_folder, darkfield_file, flatfield_file, crop_dims, bg_mode, input_substr,
-                                      file_suffix)
-            self.pjs.statusbar.showMessage('Finished.')
-
-            return True
-        else:
-            return False
+        self.batch_correct_images(input_folder, darkfield_file, flatfield_file, crop_dims, bg_mode, input_substr,
+                                  file_suffix)
+        return True
 
     def batch_correct_images(self, input_folder: Optional[str] = None, darkfield_file: Optional[str] = None,
                              flatfield_file: Optional[str] = None, crop_dims: Optional[tuple] = FFC_CROPDIMS,
@@ -321,8 +218,6 @@ class RCBBatchProcess(RCallback):
         crop_flag: bool = False
         crop_start_rows: int = -1
         crop_start_cols: int = -1
-        nrows: int = -1  # number of rows to crop
-        ncols: int = -1  # number of cols to crop
 
         if os.path.exists(flatfield_file):
             ffc_img = rimutils.read_stack(flatfield_file)
@@ -399,34 +294,6 @@ class RCBBatchProcess(RCallback):
                     if ffc_corr:
                         tmp_img = tmp_img / ffc_img
 
-                        ## This code here deals with nan's. We are not using this because the function returns an
-                        ## error if the ffc_image contains 0s.
-                        # # need to deal with pixels that are nan after being divided by zero ... usic cubic interpolation.
-                        # # this should not run if the ffc image does not have zero values.
-                        # x = numpy.arange(0, tmp_img.shape[1])
-                        # y = numpy.arange(0, tmp_img.shape[0])
-                        # xx, yy = numpy.meshgrid(x, y)
-                        # # mask invalid values
-                        # masked_img = numpy.ma.masked_invalid(tmp_img)
-                        #
-                        # # get coordinates with valid/invalid values
-                        # x_invalid = xx[masked_img.mask]
-                        #
-                        # if x_invalid.size > 0:
-                        #     print(
-                        #         f'WARNING: {x_invalid.size} pixels divided by zero in flat field correction of slice {anindex} in {afile}.')
-                        #
-                        #     y_invalid = yy[masked_img.mask]
-                        #     x_valid = xx[~masked_img.mask]
-                        #     y_valid = yy[~masked_img.mask]
-                        #
-                        #     valid_array = masked_img.data[~masked_img.mask]
-                        #
-                        #     interp_values = interpolate.griddata((x_valid, y_valid), valid_array.ravel(),
-                        #                                          (x_invalid, y_invalid), method='cubic')
-                        #
-                        #     tmp_img[y_invalid, x_invalid] = interp_values
-
                     new_img[anindex, :, :] = tmp_img.copy()
 
                 match bg_mode:
@@ -451,30 +318,28 @@ class RCBBatchProcess(RCallback):
             'file_suffix': RCBBatchProcess.FFC_FILESUFFIX
         }
 
-
     def cbMeasureBatch(self, parameters: Optional[dict] = None) -> bool:
         """
         Measures image data sets and produces plots and CSV files that combine all the data. A Python script to reproduce the analysis, and a Jupyter notebook to reproduce the analysis and generate the plots can also be generated.
 
-        :param parameters: dictionary containing measurement parameters; a dialog will open if the value is set to None; dictionary keys are:
-
-            ``folders``:
+        :param parameters: Dictionary containing the following keys to be used as parameters.
+            folders:
                 paths to the folders containing each of the data sets to compared, formatted as a list of strings; each folder will contain subfolders, each with different images and annotation files
-            ``names``:
+            names:
                 labels for the datasets to be compared, formatted as a list of strings
-            ``t_res``:
+            t_res:
                 time resolution in seconds, formatted as a float
-            ``index_time_zero``:
+            index_time_zero:
                 the slice index in timeseries corresponding to time zero, formatted as an integer
-            ``xy_res``:
+            xy_res:
                 spatial resolution in microns, formatted as float
-            ``brush_sz``:
+            brush_sz:
                 size of the brush used to quantify intensity under polyline annotations, formatted as an integer
-            ``intensity_flag``:
+            intensity_flag:
                 determines whether pixel values (and not only morphological features) are measured, set to True or False
-            ``image_extension``:
+            image_extension:
                 extension of the images to be loaded for intensity analysis, formatted a string
-            ``normalize_intensity_flag``:
+            normalize_intensity_flag:
                 determines the procedure to normalize pixel values in time sequences, set to one of pjs.batch.normalization_modes:
                     ``RAW_INTENSITIES`` – no normalization
                     ``PHOTOBLEACHING`` – divide by the image mean (the photobleaching normalization factor is 1 for first image in the sequence)
@@ -482,52 +347,31 @@ class RCBBatchProcess(RCallback):
                     ``PHOTOBLEACHING_MEAN_SAMPLE`` - detect the sample and divide by the sample mean (the photobleaching normalization factor is 1 for first image in the sequence)
                     ``BACKGROUND_PHOTOBLEACHING_MEAN_SAMPLE`` - detect the sample, subtract the sample mode and divide by the sample mean (the photobleaching normalization factor is 1 for first image in the sequence)
                     ``BACKGROUND_PHOTOBLEACHING_MEAN_FILE`` - use a file with either a single slice or as many slices as the original image, and named as the original image with PyJAMAS.backgroundimage_extension (the photobleaching normalization factor is 1 for first image in the sequence).
-            ``analysis_filename_appendix``:
+            analysis_filename_appendix:
                 suffix to be added to the name of the csv file used to save the analysis results, formatted as a string
-            ``analysis_extension``:
+            analysis_extension:
                 extension of the csv file used to save analysis results, formatted as a string
-            ``err_style_value``:
+            err_style_value:
                 determines how error is displayed in plots averaging multiple data sets, set to either ‘band’ or ‘bar’
-            ``plot_style_value``:
+            plot_style_value:
                 determines how distributions are displayed, set to either ‘box’ or ‘violin’
-            ``analyze_flag``:
+            analyze_flag:
                 determines whether annotations are measured, or if previously stored measurement values are used for plotting (faster), set to True or False
-            ``save_results``:
+            save_results:
                 determines whether overall results are saved (in a csv file) and a Jupyter notebook to reproduce analysis and plot produced, set to True or False
-            ``results_folder``:
+            results_folder:
                 path to the folder where overall quantification results, notebook, and plots will be saved, formatted as a string
-            ``script_filename_appendix``:
+            script_filename_appendix:
                 appendix to be added to the name of a file containing a Jupyter notebook that can be used to reproduce the analysis results and plots, formatted as a string
-            ``plot_flag``:
+            plot_flag:
                 determines if plots are generated (slower) or not, set to True or False
 
         :return: True if the measurements complete, False otherwise.
         """
-        continue_flag: bool = True
 
-        if parameters is None or parameters is False:
-            dialog = QtWidgets.QDialog()
-            ui = BatchMeasureDialog()
-            ui.setupUi(dialog)
+        return self.batch_measure(parameters)
 
-            dialog.exec()
-            dialog.show()
-
-            continue_flag = dialog.result() == QtWidgets.QDialog.DialogCode.Accepted
-
-            if continue_flag:
-                parameters = ui.parameters()
-
-            dialog.close()
-
-        if continue_flag:
-            return self.batch_measure(parameters)
-
-        else:
-            return False
-
-    def batch_project_concatenate(self, parameters: dict, progress_signal: ThreadSignals,
-                                  stop_signal: ThreadSignals) -> bool:
+    def batch_project_concatenate(self, parameters: dict) -> bool:
         folder_name: str = parameters.get('input_folder')
         slices: str = parameters.get('slice_list')
         file_name: str = parameters.get('file_name')
@@ -543,8 +387,7 @@ class RCBBatchProcess(RCallback):
             file_name = RUtils.set_extension(file_name, RCBBatchProcess.OUTPUT_EXTENSION)
 
         if not os.path.exists(folder_name):
-            if stop_signal is not None:
-                stop_signal.emit('Input folder does not exist!')
+            print('Input folder does not exist!')
             return False
 
         file_list: List[str] = os.listdir(folder_name)
@@ -552,7 +395,6 @@ class RCBBatchProcess(RCallback):
 
         n_files: int = len(file_list)
 
-        projected_image: numpy.ndarray = None
         projected_array: numpy.ndarray = None
 
         for ind, thefile in enumerate(file_list):
@@ -573,8 +415,7 @@ class RCBBatchProcess(RCallback):
                 else:
                     projected_array = projected_image.copy()
 
-            if progress_signal is not None:
-                progress_signal.emit(int((100 * (ind + 1)) / n_files))
+            print(int((100 * (ind + 1)) / n_files))
 
         # Now write the file.
         rimutils.write_stack(os.path.join(folder_name, file_name), projected_array)
@@ -597,7 +438,7 @@ class RCBBatchProcess(RCallback):
                 data_path: str = self._save_data(all_data, parameters)
                 self._save_notebook(parameters, data_path)
 
-        self.pjs.statusbar.showMessage(f"Analysis results stored in {parameters.get('results_folder')}.")
+        print(f"Analysis results stored in {parameters.get('results_folder')}.")
 
         return True
 
