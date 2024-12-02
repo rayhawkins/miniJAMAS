@@ -24,10 +24,13 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 import pyjamas.dialogs as dialogs
 from pyjamas.pjscore import PyJAMAS
-from pyjamas.pjscore import undo_modes
 from pyjamas.pjsthreads import ThreadSignals
 from pyjamas.rcallbacks.rcallback import RCallback
 from pyjamas.rutils import RUtils
+from pyjamas.rimage.rimutils import rimutils
+from pyjamas.rannotations.rpolyline import RPolyline
+
+import skimage.morphology as skm
 
 
 class RCBAnnotations(RCallback):
@@ -402,5 +405,61 @@ class RCBAnnotations(RCallback):
 
         return True
 
+    def cbDilatePolyline(self, theid: int, z: int, radius: int):
+        theindex = self.pjs.polyline_ids[z].index(theid)
+        thepolyline = self.pjs.polylines[z][theindex]
+        obj_mask = rimutils.mask_from_polylines((self.pjs.height, self.pjs.width), [thepolyline], brushsz=0)
+        obj_mask = skm.binary_dilation(obj_mask, skm.disk(radius))
+        thepolylines = self.polylines_from_mask(obj_mask)
 
+        return self.add_replace_polylines(thepolylines, theindex)
 
+    def cbErodePolyline(self, theid: int, z: int, radius: int):
+        theindex = self.pjs.polyline_ids[z].index(theid)
+        thepolyline = self.pjs.polylines[z][theindex]
+        obj_mask = rimutils.mask_from_polylines((self.pjs.height, self.pjs.width), [thepolyline], brushsz=0)
+        obj_mask = skm.binary_erosion(obj_mask, skm.disk(radius))
+        thepolylines = self.polylines_from_mask(obj_mask)
+
+        return self.add_replace_polylines(thepolylines, theindex)
+        return True
+
+    @staticmethod
+    def polylines_from_mask(obj_mask: numpy.ndarray) -> list:
+        labelled_im, n_objs = skm.label(obj_mask, connectivity=1, background=0, return_num=True)
+        contours = rimutils.extract_contours(labelled_im, border_objects=True)
+        thepolylines = [RPolyline(numpy.asarray(this_contour)) for this_contour in contours]
+        thepolylines[:] = [this_polyline if this_polyline.points[0] == this_polyline.points[-1]
+                           else this_polyline.points << this_polyline.points[0]
+                           for this_polyline in thepolylines]
+        return thepolylines
+
+    def add_replace_polylines(self, thepolylines: list, theindex: int) -> bool:
+        # Remove polylines of 0 area
+        areas = numpy.array([this_polyline.area() for this_polyline in thepolylines])
+        thepolylines[:] = [thepolylines[index] for index in numpy.where(areas > 0)[0]]
+        if len(thepolylines) > 0:  # Substitute the first new polyline in the same index as the previous, append others
+            self.pjs.replacePolyline(theindex, thepolylines[0].points, self.pjs.curslice)
+            if len(thepolylines) > 1:
+                for this_polyline in thepolylines[1:]:
+                    self.pjs.addPolyline(this_polyline, self.pjs.curslice)
+        else:  # No polylines found, simply remove the old one
+            self.pjs.removePolylineByIndex(theindex, self.pjs.curslice)
+
+        return True
+
+    def process_polyline_roi(self, event, fn):
+        """TODO: replace with appropriate functions in cbCrop, cbKymograph, and cbExportROIAndMasks"""
+        """fn is one of self.pjs.image.cbCrop, self.pjs.image.cbKymograph and self.pjs.io.cbExportROIAndMasks"""
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            item_index = self.pjs.find_clicked_polyline(self.x, self.y)
+            # ItemIndex of -1 means no polyline found, in which case, exit
+            if item_index == -1:
+                return False
+
+            if fn is self.pjs.image.cbCrop and self.pjs.crop_tracked_polyline:  # Crop tracked polyline, input index to cbCrop
+                thepolyline = numpy.array([item_index])
+            else:  # Crop polyline on this slice, input min and max coordinates to cbCrop
+                thepolyline = RUtils.qpolygonf2ndarray(self.pjs.polylines[self.pjs.curslice][item_index])
+            fn(polyline=thepolyline, margin_size=self.pjs.margin_size)
+        return True
