@@ -151,17 +151,20 @@ class PyJAMAS:
 
         return True
 
-    def removeFiducialsPolyline(self, polyline: RPolyline = None, inside_flag: bool = True):
+    def removeFiducialsPolyline(self, polyline: RPolyline = None, inside_flag: bool = True, z: int = None):
         # Go through the list of fiducials.
+        if z is None:
+            z = self.curslice
+
         polyline_list = polyline.points
-        inside_poly_flags: numpy.ndarray = points_in_poly(self.fiducials[self.curslice], polyline_list)
+        inside_poly_flags: numpy.ndarray = points_in_poly(self.fiducials[z], polyline_list)
 
         # To avoid deleting fiducials from the list we are checking.
-        fiducial_list = self.fiducials[self.curslice].copy()
+        fiducial_list = self.fiducials[z].copy()
 
         for thefiducial, is_inside in zip(fiducial_list, inside_poly_flags):
             if (is_inside and inside_flag) or not (is_inside or inside_flag):
-                self.removeFiducial(thefiducial[0], thefiducial[1], self.curslice)
+                self.removeFiducial(thefiducial[0], thefiducial[1], z)
 
         return True
 
