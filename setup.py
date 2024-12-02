@@ -27,12 +27,11 @@ with open("README.md", "r") as fh:
     long_description: str = fh.read()
 
 bin_path: str = os.path.dirname(sys.executable)
-# The interpreter needs to be modified to use pythonw, not python (this is a windowed app!!!).
-interpreter_name: str = 'pythonw'
+interpreter_name: str = 'python'
 shebang: str = '#!/usr/bin/env '
 sys.executable = os.path.join(bin_path, interpreter_name)
-name = "pyjamas-rfglab"
-description = "PyJAMAS is Just A More Awesome SIESTA"
+name = "minijamas"
+description = "miniJAMAS: a minimalist port of the PyJAMAS API"
 
 version = PyJAMAS.__version__
 
@@ -41,12 +40,12 @@ version = PyJAMAS.__version__
 setuptools.setup(
     name=name,
     version=version,
-    author="Rodrigo Fernandez-Gonzalez",
-    author_email="rodrigo.fernandez.gonzalez@utoronto.ca",
+    author="Ray Hawkins",
+    author_email="raymond.hawkins@mail.utoronto.ca",
     description=description,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://bitbucket.org/rfg_lab/pyjamas",
+    url="https://github.com/rayhawkins/miniJAMAS",
     packages=setuptools.find_packages(exclude=("*tests*",)),
     # this does not yet exclude tests, but it will at some point: https://github.com/pypa/setuptools/issues/3260
     include_package_data=True,
@@ -63,8 +62,6 @@ setuptools.setup(
                       "numpy==1.23.5",  ## 1.24.3 has an error when exporting mat files.
                       "opencv-python-headless==4.6.0.66",  ## greater than this will not work on Big Sur 2024/04/17
                       "pandas==2.1.4",  # avoid an issue with string cells, which must be initialized (see https://stackoverflow.com/questions/77098113/solving-incompatible-dtype-warning-for-pandas-dataframe-when-setting-new-column)
-                      "pyqt6==6.4.2", ## 6.4.2 is the last version that works in Windows 11 2024/04/27
-                      "pyqt6-qt6==6.4.2", ## 6.4.2 is the last version that works in Windows 11 2024/04/27
                       "scikit-image>=0.21.0",
                       "scikit-learn>=1.2.2",
                       "scipy>=1.10.1", "seaborn>=0.13.0", "setuptools>=67.8.0",
