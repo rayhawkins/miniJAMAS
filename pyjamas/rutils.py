@@ -16,21 +16,18 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import csv
 import gzip
 from itertools import chain
 import os.path
 import pickle
 import re
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, Tuple
 
 import matplotlib
 import numpy
 from scipy.spatial import ConvexHull, Delaunay
 from scipy.spatial.distance import cdist
 import seaborn as sns
-
-import shapely.geometry
 
 
 class RUtils:
