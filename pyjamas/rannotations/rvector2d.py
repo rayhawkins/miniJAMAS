@@ -18,16 +18,12 @@
 
 import numpy
 
-from pyjamas.rannotations import *
-
 
 class RVector2D:
-    '''
+    """
     Represents a vector by providing an origin (list, tuple, ndarray, etc),
     and the vector coordinates as a function of that origin.
-    '''
-
-    # Define static variables here.
+    """
 
     def __init__(self, origin: object, end: object):
         """
