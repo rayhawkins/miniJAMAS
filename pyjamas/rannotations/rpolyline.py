@@ -17,14 +17,12 @@
 """
 
 from typing import List
-
 import numba
 
 numba.warnings.filterwarnings('ignore', '', numba.NumbaWarning)
 
 import numpy
 import scipy.ndimage as sciim
-import PyQt6.QtGui
 from shapely.geometry import LineString
 
 from pyjamas.rannotations import *
@@ -32,14 +30,12 @@ from pyjamas.rutils import RUtils
 
 
 class RPolyline(rannotation.RAnnotation):
-    '''
+    """
     Represents a multisegment line (open) or polygon (closed) by providing a list of points (list, tuple, ndarray, etc),
     and a flag to indicate whether the curve is closed (1) or open (1).
-    '''
+    """
 
-    # Define static variables here.
-
-    def __init__(self, point_list: object):
+    def __init__(self, point_list: list):
         """
         Creates a polyline (closed_flag = 1) or a trajectory (closed_flag = 0).
         point_list is a list or tuple that will be converted into an ndarray. It can have matching first and last
@@ -51,15 +47,8 @@ class RPolyline(rannotation.RAnnotation):
 
         super().__init__()
 
-        # Define object variables here.
-        if type(point_list) == PyQt6.QtGui.QPolygonF:
-            thepoints = [[apoint.x(), apoint.y()] for apoint in point_list]
-            self.points = numpy.asarray(thepoints)
-            self.closed_flag = point_list.isClosed()
-
-        elif type(point_list) == list:
-            self.points = numpy.asarray(point_list)  # Points that define the polyline.
-            self.closed_flag = point_list[0] == point_list[-1]
+        self.points = numpy.asarray(point_list)  # Points that define the polyline.
+        self.closed_flag = point_list[0] == point_list[-1]
 
         self._area = -1  # Calculate automatically as the polygon is created?
         self._perimeter = -1  # Calculate automatically as the polygon is created?
