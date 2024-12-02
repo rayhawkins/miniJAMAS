@@ -17,13 +17,9 @@
 """
 
 import os
-from typing import Callable, List, Optional, Tuple
-
+from typing import Optional, Tuple
 import numpy
-from PyQt6 import QtCore, QtGui
-
 import pyjamas.pjscore as pjscore
-from pyjamas.pjsthreads import Thread
 
 
 class RCallback:
@@ -33,65 +29,10 @@ class RCallback:
         :type ui: pyjamas.PyJAMAS
         """
         super(RCallback, self).__init__()
-
         self.pjs = ui
-
-    # Multithreading methods here --------------------------------------------------------------------------------------
-    def launch_thread(self, run_fn: Callable, params: Optional[dict] = None, wait_for_thread: bool = False,
-                      progress_fn: Optional[Callable] = None, result_fn: Optional[Callable] = None,
-                      stop_fn: Optional[Callable] = None,
-                      error_fn: Optional[Callable] = None, finished_fn: Optional[Callable] = None):
-
-        athread = Thread(run_fn)
-
-        for a_param in params:
-            if a_param == 'progress' and params.get(a_param):
-                athread.kwargs['progress_signal'] = athread.signals.progress
-            elif a_param == 'stop' and params.get(a_param):
-                athread.kwargs['stop_signal'] = athread.signals.stop
-            elif a_param == 'error' and params.get(a_param):
-                athread.kwargs['error_signal'] = athread.signals.error
-            elif a_param == 'finished' and params.get(a_param):
-                athread.kwargs['finished_signal'] = athread.signals.finished
-            elif a_param == 'result' and params.get(a_param):
-                athread.kwargs['result_signal'] = athread.signals.result
-            else:
-                athread.kwargs[a_param] = params.get(a_param)
-
-        if progress_fn is not None and progress_fn is not False:
-            athread.signals.progress.connect(progress_fn)
-
-        if error_fn is not None and error_fn is not False:
-            athread.signals.error.connect(error_fn)
-
-        if result_fn is not None and result_fn is not False:
-            athread.signals.result.connect(result_fn)
-
-        if stop_fn is not None and stop_fn is not False:
-            athread.signals.stop.connect(stop_fn)
-
-        if finished_fn is not None and finished_fn is not False:
-            athread.signals.finished.connect(finished_fn)
-
-        self.pjs.threadpool.start(athread)
-
-        if wait_for_thread:
-            self.pjs.threadpool.waitForDone()
-
-    def finished_fn(self):
-        self.pjs.repaint()
-
-    def stop_fn(self, stop_message: str):
-        self.pjs.statusbar.showMessage(stop_message)
-
-    def progress_fn(self, n: int):
-        self.pjs.statusbar.showMessage(f" {n}% completed")
-
-    # End of multithreading methods here -------------------------------------------------------------------------------
 
     def get_coordinate_bounds(self, coordinates: Optional[numpy.ndarray] = None, margin_size: int = 0) -> (int, int, int, int):
         """
-
         :param coordinates: an array of coordinates OR an integer indicating a polygon index in self.pjs.polylines.
         :param margin_size:
         :return:
@@ -135,38 +76,6 @@ class RCallback:
             miny = 0
 
         return minx, miny, maxx, maxy
-
-    def transform_annotations(self, transform: QtGui.QTransform, im_dimensions: Optional[Tuple[int, int]] = None) -> (List, List):
-        if im_dimensions is None or im_dimensions is False:
-            im_dimensions = (self.pjs.width, self.pjs.height)
-
-        new_fiducials = [[] for _ in range(self.pjs.n_frames)]
-        new_polylines = [[] for _ in range(self.pjs.n_frames)]
-        new_polyline_ids = [[] for _ in range(self.pjs.n_frames)]
-
-        # A box around the entire image.
-        im_box: QtCore.QRectF = QtCore.QRectF(0, 0, im_dimensions[0] + self.pjs.margin_size,
-                                              im_dimensions[1] + self.pjs.margin_size)
-
-        for ii in range(self.pjs.n_frames):
-            currFids = self.pjs.fiducials[ii]
-            currPols = self.pjs.polylines[ii]
-            currIDs = self.pjs.polyline_ids[ii]
-            for aFid in currFids:
-                fp = QtCore.QPointF(aFid[0], aFid[1])
-                nf = transform.map(fp)
-                new_fid = [int(nf.x()), int(nf.y())]
-
-                if im_box.contains(new_fid[0], new_fid[1]):
-                    new_fiducials[ii].append(new_fid)
-
-            for aPol, anID in zip(currPols, currIDs):
-                np = transform.map(aPol)
-                if im_box.contains(np.boundingRect()):
-                    new_polylines[ii].append(np)
-                    new_polyline_ids[ii].append(anID)
-
-        return new_fiducials, new_polylines, new_polyline_ids
 
     def generate_ROI_filename(self, x_range: Tuple[int, int], y_range: Tuple[int, int], z_range: Tuple[int, int], extension: str, relative: bool = False) -> str:
         _, fname = os.path.split(self.pjs.filename)
