@@ -16,9 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from pyjamas import pjscore, pjseventfilter, pjsthreads, rutils, dragdropmainwindow
+from pyjamas import pjscore, pjsthreads, rutils
 
 name = "pyjamas"
 
-__all__ = [pjscore.PyJAMAS, pjseventfilter.PJSEventFilter, pjsthreads.ThreadSignals, pjsthreads.Thread, rutils.RUtils,
-           rutils.SizedStack, dragdropmainwindow.DragDropMainWindow]
+__all__ = [pjscore.PyJAMAS, pjsthreads.ThreadSignals, pjsthreads.Thread, rutils.RUtils, rutils.SizedStack]
